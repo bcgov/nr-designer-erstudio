@@ -42,8 +42,6 @@ class Containers():
             FROM BJG_CONTAINERS
             WHERE
                 RUN='{self.run}'
-                and APPLICATION_NAME = 'IRS'
-
             ORDER BY 1,3,4"""
 
         cur = self.db.connection.cursor()
@@ -52,6 +50,7 @@ class Containers():
         cur.close()
         app = ""
         for row in rows:
+            print(row)
             if app != row[0]:
                 CMOlist[row[0]] = {}
                 CMOlist[row[0]]['DESIGNER REPOSITORY'] = row[3]

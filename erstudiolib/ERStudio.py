@@ -1,7 +1,7 @@
 import win32com.client as win32
 from os import path
 from os import getcwd
-
+from erstudiolib.spreadsheet import Spreadsheet
 
 class ERStudio():
     '''
@@ -20,6 +20,7 @@ class ERStudio():
         self.defaultdir = f"{self.basedir}templates\\"
         self.cmodir = f"{self.basedir}CMO\\"
         self.basefile = f"{self.defaultdir}default.DM1"
+        self.xlsdir = f"{self.basedir}XLS\\"
         self.physicalmodelname = None
         self.fromrepo = False
         self.dm1prefix = ""
@@ -33,6 +34,7 @@ class ERStudio():
         self.app = win32.Dispatch("ERStudio.Application")
         self.attachment_text_type = 5
         self.attachment_boolean_type = 1
+        self.xlsfile = Spreadsheet()
 
     def __del__(self):
         self.close()
@@ -116,6 +118,10 @@ class ERStudio():
 
         #self.addtoproject(projectname)
         self.diagram.SaveFile("")
+        self.xlsfile.open(self.xlsdir+self.appname+'.xlsx')
+        '''
+        open an Excel spreadsheet for trapping all the pieces found in Designer but not in ERStudio
+        '''
         return self.diagram
 
     def close(self):
@@ -124,7 +130,11 @@ class ERStudio():
             if self.fromrepo:
                 self.diagram.RepoCheckinDiagram("Check In after Designer ETL Run")
             self.app.CloseDiagram(self.app.ActiveDiagram().FileName)
-        self.diagramfile = None
+            self.diagramfile = None
+            '''
+            close an Excel spreadsheet 
+            '''
+        self.xlsfile.close()
 
     def genPhysicalModel(self, gpo):
         models = self.diagram.Models()
@@ -169,43 +179,75 @@ class ERStudio():
     def setversion(self, version):
         self.diagram.Version = version
 
-    def setObjComment(self, objectname, comment, model_name=None):
+    def setObjComment(self, objectname, objecttype, comment, model_name=None):
         if comment is not None:
             if model_name is None:
                 model_name = self.physicalmodelname
 
             models = self.diagram.Models()
             model = models.Item(model_name)
-            tables = model.Entities()
-            table = tables.Item(objectname)
-            if table is not None:
-                table.UserComments().Add(comment)
+            if objecttype == 'TABLE':
+                tables = model.Entities()
+                table = tables.Item(objectname)
+                if table is not None:
+                    table.UserComments().Add(comment)
+            elif objecttype == 'VIEW':
+                views = model.Views()
+                view = views.Item(objectname)
+                if view is not None:
+                    view.UserComments().Add(comment)
+            elif objecttype == 'SNAP':
+                mviews = model.OracleMaterializedViews()
+                mview = mviews.Item(objectname)
+                if mview is not None:
+                    mview.UserComments().Add(comment)
 
-    def setObjNote(self, objectname, note, model_name=None):
+    def setObjNote(self, objectname, objecttype, note, model_name=None):
         if note is not None:
             if model_name is None:
                 model_name = self.physicalmodelname
 
             models = self.diagram.Models()
             model = models.Item(model_name)
-            tables = model.Entities()
-            table = tables.Item(objectname)
-            if table is not None:
-                table.Note = note
+            if objecttype == 'TABLE':
+                tables = model.Entities()
+                table = tables.Item(objectname)
+                if table is not None:
+                    table.Note = note
+            elif objecttype == 'VIEW':
+                views = model.Views()
+                view = views.Item(objectname)
+                if view is not None:
+                    view.Note = note
 
-    def setObjDescription(self, objectname, description, model_name=None):
+    def setObjDescription(self, objectname, objecttype, description, model_name=None):
         if description is not None:
             if model_name is None:
                 model_name = self.physicalmodelname
 
             models = self.diagram.Models()
             model = models.Item(model_name)
-            tables = model.Entities()
-            table = tables.Item(objectname)
-            if table is not None:
-                if table.Definition is not None:
-                    # don't replace reverse engineered description
-                    table.Definition = description
+            if objecttype == 'TABLE':
+                tables = model.Entities()
+                table = tables.Item(objectname)
+                if table is not None:
+                    if table.Definition is None or len(table.Definition) == 0:
+                        # don't replace reverse engineered description
+                        table.Definition = description
+            elif objecttype == 'VIEW':
+                views = model.Views()
+                view = views.Item(objectname)
+                if view is not None:
+                    if view.Definition is None or len(view.Definition) == 0:
+                        # don't replace reverse engineered description
+                        view.Definition = description
+            elif objecttype == 'SNAP':
+                mviews = model.OracleMaterializedViews()
+                mview = mviews.Item(objectname)
+                if mview is not None:
+                    if mview.Definition is None or len(mview.Definition) == 0:
+                        # don't replace reverse engineered description
+                        mview.Definition = description
 
     def setAttrDescription(self, objectname, attrname, description, model_name=None):
         if description is not None:
@@ -220,7 +262,7 @@ class ERStudio():
                 cols = table.Attributes()
                 attr = cols.Item(attrname)
                 if attr is not None:
-                    if attr.Definition is None:
+                    if attr.Definition is None or len(attr.Definition) == 0:
                         # don't replace reverse engineered description
                         attr.Definition = description
 
@@ -410,6 +452,8 @@ class ERStudio():
         if ent is not None:
             if entname is not None:
                 ent.EntityName = entname
+        else:
+            self.xlsfile.write((self.appname, 'Entity', tabname))
 
     def addEntity(self, name, definition):
         bob = self.model.Entities.Item(name)
@@ -432,6 +476,9 @@ class ERStudio():
         if rel is not None:
             rel.VerbPhrase = phrase
             rel.InversePhrase = inverse
+        else:
+            self.xlsfile.write((self.appname, 'Foreign Key', fk))
+
 
     def add_attr_name(self, tablename, columnname, attributename, domain=None, model_name='Logical'):
         if model_name is None:
@@ -451,6 +498,8 @@ class ERStudio():
                     dom = dd.Domains().Item(domain)
                     if dom is not None:
                         attr.DomainId = dom.ID
+            else:
+                self.xlsfile.write((self.appname, 'Atribute', tablename+'.'+columnname))
 
         # self.diagram.SaveFile("")
     def fixaudtitcols(self, name, model_name='Logical'):

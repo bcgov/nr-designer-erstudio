@@ -54,19 +54,21 @@ class Designer():
         return rows
 
     def get_descriptions_for_app(self, app, wa):
-        sql = f"select distinct appname, author, appdescription, appnote, appcomment from bjg_descriptions where upper(appname) = '{app.upper()}' and upper(waname) = '{wa.upper()}'"
+        sql = f"select distinct appname, author, appdescription, appnote, appcomment, title from BJG_WA_APP where upper(appname) = '{app.upper()}' and upper(waname) = '{wa.upper()}'"
         cur = self.db.connection.cursor()
         cur.execute(sql)
         rows = cur.fetchall()
         cur.close()
         return rows
 
-    def get_phys_tab_descriptions_for_app(self, app, wa, tabname=None):
+    def get_phys_tab_descriptions_for_app(self, app, wa, tabname=None, tabtype=None):
         if tabname is None:
-            sql = f"select distinct tabname, tabdescription, tabnote, tabcomment from bjg_tab_descriptions where upper(appname) = '{app.upper()}' and upper(waname) = '{wa.upper()}' order by 1"
+            sql = f"select distinct tabname, table_type, tabdescription, tabnote, tabcomment from BJG_WA_APP_TAB_COL where upper(appname) = '{app.upper()}' and upper(waname) = '{wa.upper()}' order by 1, 2"
         else:
-            sql = f"select distinct colname, coldescription, colnote, colcomment from bjg_descriptions where upper(appname) = '{app.upper()}' and upper(waname) = '{wa.upper()}' and upper(tabname) = '{tabname.upper()}' order by 1"
-
+            if tabtype is None:
+                sql = f"select distinct tabname, table_type, colname, coldescription, colnote, colcomment from BJG_WA_APP_TAB_COL where upper(appname) = '{app.upper()}' and upper(waname) = '{wa.upper()}' and upper(tabname) = '{tabname.upper()}' order by 1, 2, 3"
+            else:
+                sql = f"select distinct tabname, table_type, colname, coldescription, colnote, colcomment from BJG_WA_APP_TAB_COL where upper(appname) = '{app.upper()}' and upper(waname) = '{wa.upper()}' and upper(tabname) = '{tabname.upper()}' and upper(table_type) = '{tabtype.upper()}' order by 1, 2, 3"
         cur = self.db.connection.cursor()
         cur.execute(sql)
         rows = cur.fetchall()
@@ -74,7 +76,7 @@ class Designer():
         return rows
 
     def get_physmodel_entnames_for_app(self, app, wa):
-        sql = f"select distinct tabname, entname from bjg_tab_ents where upper(appname) = '{app.upper()}' and upper(waname) = '{wa.upper()}' order by 1"
+        sql = f"select distinct tabname, entname from BJG_WA_APP_TAB_COL where upper(appname) = '{app.upper()}' and upper(waname) = '{wa.upper()}' order by 1"
         cur = self.db.connection.cursor()
         cur.execute(sql)
         rows = cur.fetchall()
@@ -82,7 +84,7 @@ class Designer():
         return rows
 
     def get_lognames_for_app(self, app, wa):
-        sql = f"select distinct tabname, colname, entname, attname, domain from bjg_tab_ents where  upper(appname) = '{app.upper()}' and upper(waname) = '{wa.upper()}' order by 3,4"
+        sql = f"select distinct tabname, colname, entname, attrname, name from BJG_WA_APP_COL_DOM where  upper(appname) = '{app.upper()}' and upper(waname) = '{wa.upper()}' order by 3,4"
         cur = self.db.connection.cursor()
         cur.execute(sql)
         rows = cur.fetchall()
@@ -90,8 +92,8 @@ class Designer():
         return rows
 
     def get_domains_for_app(self, app, wa):
-        sql1 = f"select * from bjg_domains where parentdomain is NULL and upper(appname) = '{app.upper()}' and upper(waname) = '{wa.upper()}'"
-        sql2 = f"select * from bjg_domains where parentdomain is NOT NULL and upper(appname) = '{app.upper()}' and upper(waname) = '{wa.upper()}'"
+        sql1 = f"select waname,appname,parentdomain,name,attributename,columnname,description,note,comments,datatype,datalength,datascale,declareddefault,nullable from bjg_wa_app_col_dom where parentdomain is NULL and upper(appname) = '{app.upper()}' and upper(waname) = '{wa.upper()}'"
+        sql2 = f"select waname,appname,parentdomain,name,attributename,columnname,description,note,comments,datatype,datalength,datascale,declareddefault,nullable from bjg_wa_app_col_dom where parentdomain is NOT NULL and upper(appname) = '{app.upper()}' and upper(waname) = '{wa.upper()}'"
         cur = self.db.connection.cursor()
         cur.execute(sql1)
         rows = cur.fetchall()
@@ -100,8 +102,8 @@ class Designer():
         cur.close()
         return rows
 
-    def get_domain(self, app, wa, domain_irid):
-        sql1 = f"select waname,appname,parentdomain,name,attributename,columnname,description,note,comments,datatype,datalength,datascale,declareddefault,nullable,irid,ivid from bjg_domains where waname = '{wa}' and appname = '{app}' and irid = {domain_irid} order by waname,appname, name"
+    def get_domain(self, app, wa, ent, attr):
+        sql1 = f"select waname,appname,parentdomain,name,attributename,columnname,description,note,comments,datatype,datalength,datascale,declareddefault,nullable from bjg_wa_app_col_dom where waname = '{wa}' and appname = '{app}' and entname = '{ent}' and attrname = '{attr}' order by waname,appname, name"
         cur = self.db.connection.cursor()
         cur.execute(sql1)
         row = cur.fetchone()

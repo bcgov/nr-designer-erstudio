@@ -58,10 +58,21 @@ def ersmain():
                     add Designer descriptions for the physical objects
                     build a logical model from those physical objects
                     '''
-                    print('app:',app,'schema:',schema)
+                    print('app:', app, 'schema:', schema)
                     print(CMOs['SCHEMAS'][schema][0])
                     pm = ers.addphysmodel(CMOs['SCHEMAS'][schema][0])
-                    ers.addphysdescriptions()
+
+                '''
+                add Designer descriptions for the physical objects from the App's 
+                Designer Container
+                '''
+                ers.addphysdescriptions()
+
+                for schema in CMOs['SCHEMAS']:
+                    '''
+                    for each schema in the app 
+                    build a logical model from those physical objects
+                    '''
                     lm = ers.addlogmodel(CMOs['SCHEMAS'][schema][1])
 
                 '''
@@ -71,8 +82,15 @@ def ersmain():
                 ers.add_domains()
                 ers.addattrnames()
                 ers.add_rel_phrases()
-                ers.adddescription(irs.getdescription(app)[0])
-                ers.addfullname(irs.getfullname(app)[0])
+                desc = irs.getdescription(app)
+                if desc is not None:
+                    ers.adddescription(irs.getdescription(app)[0])
+                else:
+                    ers.adddescription(None)
+                fullname = irs.getfullname(app)
+                if fullname is not None:
+                    ers.addfullname(irs.getfullname(app)[0])
+
                 ers.addIRSlink(app)
                 ers.addauthor()
                 svnver = getAppVersionfromSVN(app)

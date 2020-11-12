@@ -22,7 +22,10 @@ class AddtoERStudio():
         if repo != self.repo:
             if self.repo is not None:
                 self.designer.close()
-            self.designer = Designer(repo)
+            if repo is not None:
+                self.designer = Designer(repo)
+            self.repo = repo
+            self.ERS.xlsfile.setdesignerrepo(repo)
 
     def openERS(self, app=None, diagram=None, workarea=None, designername=None):
         if app != self.appname:
@@ -31,8 +34,11 @@ class AddtoERStudio():
 
             self.designername = designername
             self.workarea = workarea
+
             self.setapp(app)
             self.ERS.open(diagram)
+            if self.workarea is not None:
+                self.ERS.xlsfile.setworkarea(self.workarea)
             self.physmodelname, self.physmodel = self.ERS.addModel(self.appname)
         return self.ERS
 
@@ -40,8 +46,20 @@ class AddtoERStudio():
         self.ERS.close()
 
     def adddescription(self, description):
-        if description[0] is not None:
-            self.ERS.setdescription(description)
+        if description is not None and description[0] is not None:
+            self.ERS.setdescription(description[0])
+        else:
+            desc = self.designer.get_descriptions_for_app(self.designername, self.workarea)
+            if len(desc) > 0:
+                self.ERS.setdescription(desc[0][2])
+
+    def addfullname(self, fullname):
+        if fullname is not None and fullname[0] is not None:
+            self.ERS.addtag('Application Name', self.ERS.attachment_text_type, 'The Full Name of the Application from IRS', fullname[0])
+        else:
+            title = self.designer.get_descriptions_for_app(self.designername, self.workarea)
+            if len(title) > 0:
+                self.ERS.addtag('Application Name', self.ERS.attachment_text_type,  'The Full Name of the Application from Designer', fullname[0][6])
 
     def addversion(self, version):
         if version is not None:
@@ -56,9 +74,6 @@ class AddtoERStudio():
 
     def addconvertedtag(self):
         self.ERS.addtag('Converted from Designer', self.ERS.attachment_boolean_type, 'Whether the model was converted from Designer', 'True')
-
-    def addfullname(self, fullname):
-        self.ERS.addtag('Application Name', self.ERS.attachment_text_type, 'The Full Name of the Application from IRS', fullname)
 
     def addIRSlink(self, shortname):
         self.ERS.addtag('IRS Link', self.ERS.attachment_text_type, 'The Full Name of the Application from IRS', f"https://a100.gov.bc.ca/int/irs/viewApplication.do?name={shortname}")
@@ -93,14 +108,15 @@ class AddtoERStudio():
         if self.designername:
             tables = self.designer.get_phys_tab_descriptions_for_app(self.designername, self.workarea)
             for table in tables:
-                self.ERS.setObjComment(table[0], table[3])
-                self.ERS.setObjNote(table[0], table[2])
-                self.ERS.setObjDescription(table[0], table[1])
-                cols = self.designer.get_phys_tab_descriptions_for_app(self.designername, self.workarea, table[0])
-                for col in cols:
-                    self.ERS.setAttrDescription(table[0], col[0], col[1])
-                    self.ERS.setAttrNote(table[0], col[0], col[2])
-                    self.ERS.setAttrComment(table[0], col[0], col[3])
+                self.ERS.setObjComment(table[0], table[1], table[4])
+                self.ERS.setObjNote(table[0], table[1], table[3])
+                self.ERS.setObjDescription(table[0], table[1], table[2])
+                if table[1] == 'TABLE':
+                    cols = self.designer.get_phys_tab_descriptions_for_app(self.designername, self.workarea, table[0], table[1])
+                    for col in cols:
+                        self.ERS.setAttrDescription(table[0], col[2], col[3])
+                        self.ERS.setAttrNote(table[0], col[2], col[4])
+                        self.ERS.setAttrComment(table[0], col[2], col[5])
         return
 
     def addphyssubmodels(self):
@@ -141,7 +157,16 @@ class AddtoERStudio():
         if self.designername:
             objects = self.designer.get_physmodel_entnames_for_app(self.designername, self.workarea)
             for obj in objects:
-                self.ERS.addEntNametoPhys(obj[0], obj[1].title())
+                self.ERS.addEntNametoPhys(obj[0], self.erstitle(obj[1]))
+
+    def erstitle(self, name):
+        if name.startswith(self.appname+' '):
+            newname = self.appname + ' ' + name[len(self.appname)+1:].title()
+        elif name.startswith(self.appname+'_'):
+            newname = self.appname + '_' + name[len(self.appname)+1:].title()
+        else:
+            newname = name.title()
+        return newname
 
     def addattrnames(self):
         print("Adding Attribute Names")
@@ -149,10 +174,16 @@ class AddtoERStudio():
             self.ERS = self.openERS()
 
         if self.designername:
+            '''
+            get a list of table/
+            '''
             objects = self.designer.get_lognames_for_app(self.designername, self.workarea)
             ent = ""
             if objects is not None:
                 if len(objects) > 0:
+                    '''
+                    Get the name of the first entity
+                    '''
                     ent = objects[0][2]
 
 
@@ -172,17 +203,18 @@ class AddtoERStudio():
                 '''
 
                 if obj[2] != ent:
-                    self.ERS.fixaudtitcols(obj[2].title())
-                    ent = obj[2].title()
+                    ''''''
+                    self.ERS.fixaudtitcols(self.erstitle(obj[2]))
+                    ent = self.erstitle(obj[2])
 
+                domain = None
                 if obj[4] is not None:
                     try:
-                        domain = self.designer.get_domain(self.designername, self.workarea, obj[4])[3]
+                        domain = self.designer.get_domain(self.designername, self.workarea, obj[2], obj[3])[3]
                     except:
                         print ("error on ", obj[0], obj[1], obj[2], obj[3], obj[4])
-                else:
-                    domain = None
-                self.ERS.add_attr_name(obj[2].title(), obj[1], obj[3].title(), domain)
+
+                self.ERS.add_attr_name(self.erstitle(obj[2]), obj[1], self.erstitle(obj[3]), domain)
             '''
             need a bit of code to fix the last entity in the list
             '''
@@ -211,6 +243,42 @@ class AddtoERStudio():
                         datatype = 'VARCHAR'
                     elif datatype == 'NUMBER':
                         datatype = 'NUMERIC'
+                    elif datatype == 'BINARY_DOUBLE':
+                        datatype = 'DOUBLE PRECISION'
+                    elif datatype == 'BINARY_FLOAT':
+                        datatype = 'FLOAT'
+                    elif datatype == 'FLOAT':
+                        datatype = 'REAL/SMALLFLOAT'
+                    elif datatype == 'LONG':
+                        datatype = 'LONG VARCHAR'
+                    elif datatype == 'LONG RAW':
+                        datatype = 'IMAGE/LONGBINARY'
+                    elif datatype == 'CLOB':
+                        datatype = 'TEXT'
+                    elif datatype == 'BLOB':
+                        datatype = 'PICTURE'
+                    elif datatype == 'NCLOB':
+                        datatype = 'NTEXT/LONG NVARCHAR'
+                    elif datatype == 'RAW':
+                        datatype = 'BINARY'
+                    elif datatype == 'ROWID':
+                        datatype = 'ROWID/VARCHAR(18)'
+                    elif datatype == 'MSLABEL':
+                        datatype = 'MSLABEL/VARCHAR(18)'
+                    elif datatype == 'SDO_GEOMETRY' or datatype.upper() == 'MDSYS.SDO_GEOMETRY':
+                        datatype = 'GEOMETRY'
+                    elif datatype == 'TIMESTAMP':
+                        datatype = 'DATETIME'
+                    elif datatype == 'ROWID':
+                        datatype = 'ROWID/VARCHAR(18)'
+                    elif datatype == 'INTERVAL YEAR (2) TO MONTH' or datatype == 'INTERVAL':
+                        datatype = 'INTERVAL'
+                    elif datatype.upper() == 'XMLTYPE' or datatype.upper() == 'SYS.XMLTYPE':
+                        datatype = 'XML'
+                    elif datatype.upper() == 'URITYPE' or datatype.upper() == 'SYS.URITYPE':
+                        datatype = 'CHAR(10)'
+                    elif datatype.upper() == 'HTTPURITYPE' or datatype.upper() == 'SYS.HTTPURITYPE':
+                        datatype = 'CHAR(10)'
 
                     self.ERS.add_domain(name=domain[3],
                                         attributename=domain[4],
